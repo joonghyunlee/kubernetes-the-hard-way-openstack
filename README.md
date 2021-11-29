@@ -25,13 +25,11 @@ Kubernetes The Hard Way는 Kubernetes 클러스터를 스스로 구축하는데 
 
 이 지침서는 Kubernetes 클러스터를 실제 서비스에 도입할 예정에 있고 어떻게 동작하는지 알고 싶어하는 사람들을 대상으로 합니다.
 
-The target audience for this tutorial is someone planning to support a production Kubernetes cluster and wants to understand how everything fits together.
 
-## 클러스터 상세 Cluster Details
+
+## 클러스터 상세
 
 Kubernetes The Hard Way는 컴포넌트 수준 종단 간 암호화와 RBAC 인증이 적용된 고가용성 Kubernetes 클러스터를 구축하는 과정을 안내합니다.
-
-Kubernetes The Hard Way guides you through bootstrapping a highly available Kubernetes cluster with end-to-end encryption between components and RBAC authentication.
 
 * [kubernetes](https://github.com/kubernetes/kubernetes) v1.18.6
 * [containerd](https://github.com/containerd/containerd) v1.3.6
@@ -39,11 +37,11 @@ Kubernetes The Hard Way guides you through bootstrapping a highly available Kube
 * [cni](https://github.com/containernetworking/cni) v0.8.6
 * [etcd](https://github.com/coreos/etcd) v3.4.10
 
-## 목차 Labs
+
+
+## 목차
 
 이 지침서는 [NHN Cloud](www.toast.com)에 접근할 수 있다고 가정합니다. NHN Cloud를 기본 인프라스트럭쳐로 사용하지만, 이 지침서에서 배운 내용들은 다른 플랫폼 특히 OpenStack에도 적용할 수 있습니다.
-
-This tutorial assumes you have access to the [Google Cloud Platform](https://cloud.google.com). While GCP is used for basic infrastructure requirements the lessons learned in this tutorial can be applied to other platforms.
 
 * [사전 준비](docs/01-prerequisites.md)
 * [사용자 도구 설치하기](docs/02-client-tools.md)

@@ -1,7 +1,5 @@
 # 인스턴스 준비하기
 
-Kubernetes requires a set of machines to host the Kubernetes control plane and the worker nodes where containers are ultimately run. In this lab you will provision the compute resources required for running a secure and highly available Kubernetes cluster across a single [compute zone](https://cloud.google.com/compute/docs/regions-zones/regions-zones).
-
 쿠버네티스는 컨트롤 플레인(API 서버)가 호스팅되는 노드들과 컨테이너가 궁극적으로 실행되는 워커 노드들이 필요합니다. 이 실습에서는 단일 [가용성 영역](https://docs.toast.com/ko/Compute/Instance/ko/overview/#availability-zone)에서 고가용성 쿠버네티스를 구축할 수 있도록 인스턴스들을 생성해보도록 하겠습니다.
 
 

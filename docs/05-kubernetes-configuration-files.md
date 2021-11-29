@@ -1,8 +1,10 @@
-# Generating Kubernetes Configuration Files for Authentication
+# 인증을 위한 쿠버네티스 설정 파일 생성
 
 In this lab you will generate [Kubernetes configuration files](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/), also known as kubeconfigs, which enable Kubernetes clients to locate and authenticate to the Kubernetes API Servers.
 
-## Client Authentication Configs
+이번 실습에서는 kubeconfigs라고 알려진 [쿠버네티스 설정 파일](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/)을 생성하고, 쿠버네티스 클라이언트가 API 서버를 찾아 인증할 수 있도록 합니다.
+
+## 클라이언트 인증 설정
 
 In this section you will generate kubeconfig files for the `controller manager`, `kubelet`, `kube-proxy`, and `scheduler` clients and the `admin` user.
 
