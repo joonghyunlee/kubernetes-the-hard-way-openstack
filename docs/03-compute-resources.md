@@ -44,6 +44,7 @@ openstack network list --external -c ID -c Name
 . openrc.sh
 
 NETWORK_ID=$(openstack network list --no-share -f value -c ID)
+EXT_NETWORK_ID=$(openstack network list  -f value -c ID)
 ```
 
 기본 네트워크의 서브넷 기본 정보는 다음과 같이 확인합니다. 사용하려는 서브넷은 쿠버네티스의 각 노드에 사설 IP 주소를 부여할 수 있도록 충분히 넓은 대역을 가지고 있어야 합니다. NHN Cloud에서 기본 서브넷의 CIDR는 /24 이므로 이 자습서가 다루는 수준에서는 충분하다고 할 수 있습니다. 
@@ -115,6 +116,35 @@ openstack security group list -c ID -c Name
 
 
 
+### 로드밸런서 생성
+
+서브넷 ID 조회
+
+```bash
+SUBNET_ID=`openstack subnet list --network $NETWORK_ID -c ID -f value`
+```
+
+
+
+```bash
+neutron lbaas-loadbalancer-create --name kubernetes --vip-address 192.168.0.9 $SUBNET_ID
+neutron lbaas-listener-create --loadbalancer kubernetes --protocol TCP --protocol-port 6443 --name kubernetes
+neutron lbaas-pool-create --name kubernetes --loadbalancer kubernetes --protocol TCP --lb-algorithm ROUND_ROBIN --listener kubernetes --member-port 6443
+neutron lbaas-healthmonitor-create --name kubernetes --type TCP --pool kubernetes --delay 30 --timeout 5 --max-retries 2 --health-check-port 6443
+```
+
+
+
+```bash
+LB_PORT=`neutron lbaas-loadbalancer-show kubernetes -f value -c vip_port_id`
+openstack floating ip create $EXT_NETWORK_ID --port $LB_PORT
+KUBERNETES_PUBLIC_ADDRESS=`openstack floating ip list --port $LB_PORT -f value -c 'Floating IP Address'`
+```
+
+
+
+
+
 ## 인스턴스
 
 ### 인스턴스 이미지
@@ -150,11 +180,10 @@ do
     --nic net-id=$NETWORK_ID,v4-fixed-ip=192.168.0.1${i} \
     --flavor m2.c4m8 \
     --key-name k8s-node-key \
-    --security-group external \
-    --security-group internal \
+    --security-groups external,internal \
     --block-device source=image,id=$IMAGE_ID,dest=volume,size=100,shutdown=remove,bootindex=0 \
     controller-${i}.${DOMAIN};
-  openstack server add floating ip controller-${i}.${DOMAIN} $(openstack floating ip create 'public_network' -f value -c floating_ip_address)
+  openstack server add floating ip controller-${i}.${DOMAIN} $(openstack floating ip create $EXT_NETWORK_ID -f value -c floating_ip_address)
 done
 ```
 
@@ -171,11 +200,10 @@ do
     --nic net-id=$NETWORK_ID,v4-fixed-ip=192.168.0.2${i} \
     --flavor m2.c4m8 \
     --key-name k8s-node-key \
-    --security-group external \
-    --security-group internal \
+    --security-groups external,internal \
     --block-device source=image,id=$IMAGE_ID,dest=volume,size=200,shutdown=remove,bootindex=0 \
     worker-${i}.${DOMAIN};
-    openstack server add floating ip worker-${i}.${DOMAIN} $(openstack floating ip create 'public_network' -f value -c floating_ip_address)
+    openstack server add floating ip worker-${i}.${DOMAIN} $(openstack floating ip create $EXT_NETWORK_ID -f value -c floating_ip_address)
 done
 ```
 
@@ -217,7 +245,7 @@ done
 인스턴스 접속 시 매번 user와 keyfile을 지정하는 것이 불편하다면 아래와 같이 `~/.ssh/config` 파일에 설정을 추가합니다.
 
 ```config
-Host *.k8s.lan
+Host *.k8s.nhn
     User centos
     IdentityFile ~/.ssh/k8s.node-key.pem
 ```

@@ -10,8 +10,9 @@
 
 다음 [OpenStack 문서](https://docs.openstack.org/newton/user-guide/common/cli-install-openstack-command-line-clients.html)를 참고하여 `python-openstackclient` 도구를 설치하고 사용할 수 있도록 준비합니다. 여기서는 3.12.0 버전을 설치합니다.
 
-```
+```bash
 pip install python-openstackclient==3.12.0
+pip install python-neutronclient==6.19.0
 ```
 
 실행하면 아래와 같은 에러가 발생할 수 있습니다.
@@ -38,7 +39,7 @@ openstack 3.19.0
 
 ### OpenStack 환경 변수 설정
 
-[OpenStack 명령줄 도구를 사용하기 위한 환경 변수 설정](https://docs.openstack.org/newton/user-guide/common/cli-set-environment-variables-using-openstack-rc.html) 문서와 NHN Cloud의 [Compute > API 사용준비](https://docs.toast.com/ko/Compute/Compute/ko/identity-api/) 문서를 참고하여 아래와 같이 OpenStack `rc` 파일을 준비합니다. 이 파일을 통해 OpenStack 관련 환경 변수들을 설정해야 OpenStack CLI
+[OpenStack 명령줄 도구를 사용하기 위한 환경 변수 설정](https://docs.openstack.org/newton/user-guide/common/cli-set-environment-variables-using-openstack-rc.html) 문서와 NHN Cloud의 [Compute > API 사용준비](https://docs.toast.com/ko/Compute/Compute/ko/identity-api/) 문서를 참고하여 아래와 같이 OpenStack `rc` 파일을 준비합니다. 이 파일을 통해 OpenStack 관련 환경 변수들을 설정해야 OpenStack CLI를 사용할 수 있습니다.
 
 ```bash
 export OS_USERNAME=joonghyun.lee@nhn.com

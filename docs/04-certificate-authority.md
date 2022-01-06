@@ -101,14 +101,12 @@ admin.pem
 
 ### 쿠버네티스 클라이언트 인증서
 
-Kubernetes uses a [special-purpose authorization mode](https://kubernetes.io/docs/admin/authorization/node/) called Node Authorizer, that specifically authorizes API requests made by [Kubelets](https://kubernetes.io/docs/concepts/overview/components/#kubelet). In order to be authorized by the Node Authorizer, Kubelets must use a credential that identifies them as being in the `system:nodes` group, with a username of `system:node:<nodeName>`. In this section you will create a certificate for each Kubernetes worker node that meets the Node Authorizer requirements.
-
-쿠버네티스는 [Node Authorizer](https://kubernetes.io/docs/admin/authorization/node/)라는 특수 목적 인증 방식을 사용합니다. 이 방식은 [Kubelet](https://kubernetes.io/docs/concepts/overview/components/#kubelet)이 호출하는 API 요청을 인증하는데 사용됩니다. Node Authorizer에게 인증을 받기 위해서 Kubelets은 `system:nodes:<nodeName>` 사용자명을 가진, `system:nodes` 그룹에 속하는지를 식별하는 자격증명을 사용해야 합니다. 이 단계에서는 Node Authorizer의 요구 사항을 만족할 수 있는 쿠버네티스의 각 워커 노드 용 인증서를 생성합니다.
+쿠버네티스는 [Node Authorizer](https://kubernetes.io/docs/admin/authorization/node/)라는 특수 목적 인증 방식을 사용합니다. 이 방식은 [Kubelet](https://kubernetes.io/docs/concepts/overview/components/#kubelet) 등 쿠버네티스 컴포넌트들이 호출하는 API 요청을 인증하는데 사용됩니다. Node Authorizer에게 인증을 받기 위해서 Kubelet들은 `system:nodes:<nodeName>` 사용자명을 가지고 있어 `system:nodes` 그룹에 속하는지를 나타내는 자격증명을 사용해야 합니다. 이 단계에서는 Node Authorizer의 요구 사항을 만족할 수 있는 쿠버네티스의 각 워커 노드 용 인증서를 생성합니다.
 
 다음 명령을 통해 쿠버네티스의 워커 노드용 인증서와 사설 키를 생성합니다.
 
 ```bash
-DOMAIN="k8s.lan"
+DOMAIN="k8s.nhn"
 for instance in worker-0 worker-1 worker-2; do
 cat > ${instance}-csr.json <<EOF
 {
@@ -279,7 +277,6 @@ kube-scheduler.pem
 `kube-apiserver`  인증서와 사설키를 생성합니다.
 
 ```bash
-KUBERNETES_PUBLIC_ADDRESS=$(openstack server show k8sosp.${DOMAIN} -f value -c addresses | awk '{ print $2 }')
 KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
 
 cat > kubernetes-csr.json <<EOF
@@ -305,7 +302,7 @@ cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
-  - hostname=k8sosp.${DOMAIN},10.240.0.200,10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  - hostname=10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
 ```
@@ -321,7 +318,7 @@ kubernetes.pem
 
 
 
-## The Service Account Key Pair
+## 서비스 어카운트 키페어
 
 쿠버네티스 Controller Manager는 키페어를 사용해 [서비스 어카운트 관리하기](https://kubernetes.io/docs/admin/service-accounts-admin/) 문서에서 설명한 대로 서비스 어카운트의 토큰을 생성하고 서명합니다.
 
@@ -368,15 +365,19 @@ service-account.pem
 
 쿠버네티스 클라이언트 인증서와 사설키들을 각 워커 인스턴스 내부로 복사합니다.
 
-```
+```bash
+DOMAIN=k8s.nhn
 for instance in worker-0 worker-1 worker-2; do
-  scp ca.pem ${instance}-key.pem ${instance}.pem ${instance}.${DOMAIN}:
+  floating_ip=`openstack server show ${instance}.${DOMAIN} -c addresses -f value | cut -d ' ' -f 3`
+  
+  scp -i k8s.node-key.pem ca.pem ${instance}-key.pem ${instance}.pem ubuntu@${floating_ip}:~
 done
 ```
 
 생성한 인증서와 사설키들을 각 마스터 인스턴스 내부로도 복사합니다.
 
-```
+```bash
+DOMAIN=k8s.nhn
 for instance in controller-0 controller-1 controller-2; do
   scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
     service-account-key.pem service-account.pem ${instance}.${DOMAIN}:
