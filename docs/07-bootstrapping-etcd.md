@@ -1,8 +1,8 @@
-# Bootstrapping the etcd Cluster
+# etcd 클러스터 구성하기
 
-Kubernetes components are stateless and store cluster state in [etcd](https://github.com/etcd-io/etcd). In this lab you will bootstrap a three node etcd cluster and configure it for high availability and secure remote access.
+Kubernetes 컴포넌트들은 클러스터 상태 정보를 [etcd](https://github.com/etcd-io/etcd)에 저장합니다. 이번 실습에서는 고가용성 및 안전한 원격 접근을 위해 3개 노드로 구성된 etcd 클러스터를 구축해보겠습니다.
 
-## Prerequisites
+## 사전 준비
 
 The commands in this lab must be run on each controller instance: `controller-0`, `controller-1`, and `controller-2`. Login to each controller instance using the `gcloud` command. Example:
 

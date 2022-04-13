@@ -277,6 +277,7 @@ kube-scheduler.pem
 `kube-apiserver`  인증서와 사설키를 생성합니다.
 
 ```bash
+KUBERNETES_PUBLIC_ADDRESS=`openstack floating ip list --port $LB_PORT -f value -c 'Floating IP Address'`
 KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
 
 cat > kubernetes-csr.json <<EOF
@@ -302,7 +303,7 @@ cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
-  - hostname=10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -hostname=10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
 ```
@@ -379,7 +380,7 @@ done
 ```bash
 DOMAIN=k8s.nhn
 for instance in controller-0 controller-1 controller-2; do
-  scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  scp -i k8s.node-key.pem ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
     service-account-key.pem service-account.pem ${instance}.${DOMAIN}:
 done
 ```

@@ -15,7 +15,7 @@
 앞서 설정한 로드밸런서의 고정 IP 주소를 찾습니다.
 
 ```bash
-KUBERNETES_PUBLIC_ADDRESS=$(openstack server show k8sosp.${DOMAIN} -f value -c addresses | awk '{ print $2 }')
+KUBERNETES_PUBLIC_ADDRESS=`openstack floating ip list --port $LB_PORT -f value -c 'Floating IP Address'`
 ```
 
 
@@ -160,9 +160,9 @@ kube-scheduler.kubeconfig
 
 
 
-### The admin Kubernetes Configuration File
+### 관리자용 Kubernetes 설정 파일
 
-Generate a kubeconfig file for the `admin` user:
+`admin` 사용자를 위한 kubeconfig 파일을 생성합니다.
 
 ```
 {
@@ -195,21 +195,23 @@ admin.kubeconfig
 
 
 
-## Distribute the Kubernetes Configuration Files
+## Kubernetes 설정 파일 배포
 
-Copy the appropriate `kubelet` and `kube-proxy` kubeconfig files to each worker instance:
+`kubelet`과 `kube-proxy` kubeconfig 파일들을 각 Worker 노드 인스턴스로 복사합니다.
 
-```
+```bash
 for instance in worker-0 worker-1 worker-2; do
-  gcloud compute scp ${instance}.kubeconfig kube-proxy.kubeconfig ${instance}:~/
+  floating_ip=`openstack server show ${instance}.${DOMAIN} -c addresses -f value | cut -d ' ' -f 3`
+  scp -i k8s.node-key.pem ${instance}.kubeconfig kube-proxy.kubeconfig ubuntu@${floating_ip}:~
 done
 ```
 
-Copy the appropriate `kube-controller-manager` and `kube-scheduler` kubeconfig files to each controller instance:
+`kube-controller-manager`과 `kube-scheduler` kubeconfig 파일들은 Master 노드 인스턴스들로 복사합니다.
 
-```
+```bash
 for instance in controller-0 controller-1 controller-2; do
-  gcloud compute scp admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig ${instance}:~/
+  scp -i k8s.node-key.pem admin.kubeconfig kube-controller-manager.kubeconfig \
+    kube-scheduler.kubeconfig ${instance}.${DOMAIN}:~
 done
 ```
 

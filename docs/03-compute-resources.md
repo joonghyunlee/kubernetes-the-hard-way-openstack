@@ -44,7 +44,7 @@ openstack network list --external -c ID -c Name
 . openrc.sh
 
 NETWORK_ID=$(openstack network list --no-share -f value -c ID)
-EXT_NETWORK_ID=$(openstack network list  -f value -c ID)
+EXT_NETWORK_ID=$(openstack network list --external -f value -c ID)
 ```
 
 기본 네트워크의 서브넷 기본 정보는 다음과 같이 확인합니다. 사용하려는 서브넷은 쿠버네티스의 각 노드에 사설 IP 주소를 부여할 수 있도록 충분히 넓은 대역을 가지고 있어야 합니다. NHN Cloud에서 기본 서브넷의 CIDR는 /24 이므로 이 자습서가 다루는 수준에서는 충분하다고 할 수 있습니다. 
@@ -230,6 +230,11 @@ openstack server list -f table -c Name -c Networks -c Flavor -c Status
 +----------------------+--------+------------------------------+---------+
 ```
 
+호스트의 이름으로 IP를 찾을 수 있도록 로컬의 `/etc/hosts`에 등록합니다.
+
+```bash
+openstack server list -f value -c Networks -c Name | sed -e 's/Default Network=.*, //g' | awk ' { t = $1; $1 = $2; $2 = t; print; } ' | sudo tee -a /etc/hosts
+```
 
 
 ## SSH 접속 설정
@@ -246,7 +251,7 @@ done
 
 ```config
 Host *.k8s.nhn
-    User centos
+    User ubuntu
     IdentityFile ~/.ssh/k8s.node-key.pem
 ```
 
