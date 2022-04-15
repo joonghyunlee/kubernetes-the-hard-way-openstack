@@ -37,8 +37,8 @@ cat > ca-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "OU": "CA",
+      "O": "Kubernetes"
     }
   ]
 }
@@ -77,8 +77,8 @@ cat > admin-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "system:masters",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }
@@ -120,8 +120,8 @@ cat > ${instance}-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "system:nodes",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }
@@ -168,8 +168,8 @@ cat > kube-controller-manager-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "system:kube-controller-manager",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }
@@ -208,8 +208,8 @@ cat > kube-proxy-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "system:node-proxier",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }
@@ -247,8 +247,8 @@ cat > kube-scheduler-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "system:kube-scheduler",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }
@@ -292,8 +292,8 @@ cat > kubernetes-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "Kubernetes",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }
@@ -303,7 +303,7 @@ cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
-  -hostname=10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -hostname=10.32.0.1,192.168.0.10,192.168.0.11,192.168.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
 ```
@@ -338,8 +338,8 @@ cat > service-account-csr.json <<EOF
       "C": "KR",
       "ST": "Geonggi",
       "L": "Seongnam",
-      "O": "NHN",
-      "OU": "Kubernetes"
+      "O": "Kubernetes",
+      "OU": "Kubernetes The Hard Way"
     }
   ]
 }

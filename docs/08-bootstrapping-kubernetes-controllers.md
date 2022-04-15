@@ -1,32 +1,28 @@
-# Bootstrapping the Kubernetes Control Plane
+# Kubernetes 컨트롤 플레인 준비하기
 
-In this lab you will bootstrap the Kubernetes control plane across three compute instances and configure it for high availability. You will also create an external load balancer that exposes the Kubernetes API Servers to remote clients. The following components will be installed on each node: Kubernetes API Server, Scheduler, and Controller Manager.
+이번 실습에서는 세 개의 인스턴스에 걸쳐 Kubernetes 마스터 노드를 준비하고 고가용성 구성을 하는 과정을 다룹니다. 이 과정에서 Kubernetes API 서버를 클라이언트에게 노출하기 위한 로드밸런서를 생성합니다. 최종적으로 Kubernetes API Server, Scheduler, 그리고 Controller Manager와 같은 구성요소들이 각 노드들에 설치됩니다.
 
-## Prerequisites
+## 사전 준비
 
-The commands in this lab must be run on each controller instance: `controller-0`, `controller-1`, and `controller-2`. Login to each controller instance using the `gcloud` command. Example:
+이번 실습의 명령들은 컨트롤러 인스턴스 `controller-0`, `controller-1`, 그리고 `controller-2`에서 각각 실행되어야 합니다. 다음 명령을 통해 각 컨트롤러 인스턴스에 접속합니다.
 
+```bash
+ssh controller-0.${DOMAIN}
 ```
-gcloud compute ssh controller-0
-```
 
-### Running commands in parallel with tmux
+## Kubernetes 컨트롤 플레인 구성
 
-[tmux](https://github.com/tmux/tmux/wiki) can be used to run commands on multiple compute instances at the same time. See the [Running commands in parallel with tmux](01-prerequisites.md#running-commands-in-parallel-with-tmux) section in the Prerequisites lab.
+먼저 Kubernetes 설정들을 저장하는 디렉토리를 생성합니다.
 
-## Provision the Kubernetes Control Plane
-
-Create the Kubernetes configuration directory:
-
-```
+```bash
 sudo mkdir -p /etc/kubernetes/config
 ```
 
-### Download and Install the Kubernetes Controller Binaries
+### Kubernetes 컨트롤러 바이너리 내려받기 및 설치
 
-Download the official Kubernetes release binaries:
+Kubernetes 공식 배포 바이너리를 내려받습니다.
 
-```
+```bash
 wget -q --show-progress --https-only --timestamping \
   "https://storage.googleapis.com/kubernetes-release/release/v1.18.6/bin/linux/amd64/kube-apiserver" \
   "https://storage.googleapis.com/kubernetes-release/release/v1.18.6/bin/linux/amd64/kube-controller-manager" \
@@ -34,37 +30,32 @@ wget -q --show-progress --https-only --timestamping \
   "https://storage.googleapis.com/kubernetes-release/release/v1.18.6/bin/linux/amd64/kubectl"
 ```
 
-Install the Kubernetes binaries:
+Kubernetes 바이너리 설치하기
 
-```
-{
-  chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
-  sudo mv kube-apiserver kube-controller-manager kube-scheduler kubectl /usr/local/bin/
-}
+```bash
+chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
+sudo mv kube-apiserver kube-controller-manager kube-scheduler kubectl /usr/local/bin/
 ```
 
-### Configure the Kubernetes API Server
+### Kubernetes API 서버 설정
 
-```
-{
-  sudo mkdir -p /var/lib/kubernetes/
+```bash
+sudo mkdir -p /var/lib/kubernetes/
 
-  sudo mv ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
-    service-account-key.pem service-account.pem \
-    encryption-config.yaml /var/lib/kubernetes/
-}
+sudo mv ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml /var/lib/kubernetes/
 ```
 
-The instance internal IP address will be used to advertise the API Server to members of the cluster. Retrieve the internal IP address for the current compute instance:
+인스턴스 내부 IP 주소는 API 서버를 클러스터 내 나머지 멤버들에게 알려주기 위해 사용됩니다. 내부 IP 주소는 인스턴스 내에서 아래 명령을 통해 확인할 수 있습니다.
 
-```
-INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+```bash
+INTERNAL_IP=$(curl -sX GET http://169.254.169.254/latest/meta-data/local-ipv4)
 ```
 
-Create the `kube-apiserver.service` systemd unit file:
+`kube-apiserver.service` systemd unit 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/systemd/system/kube-apiserver.service
 [Unit]
 Description=Kubernetes API Server
@@ -86,7 +77,7 @@ ExecStart=/usr/local/bin/kube-apiserver \\
   --etcd-cafile=/var/lib/kubernetes/ca.pem \\
   --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
   --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
-  --etcd-servers=https://10.240.0.10:2379,https://10.240.0.11:2379,https://10.240.0.12:2379 \\
+  --etcd-servers=https://191.168.0.10:2379,https://192.168.0.11:2379,https://192.168.0.12:2379 \\
   --event-ttl=1h \\
   --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
   --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
@@ -108,17 +99,17 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### Configure the Kubernetes Controller Manager
+### Kubernetes Controller Manager 설정
 
-Move the `kube-controller-manager` kubeconfig into place:
+`kube-controller-manager` kubeconfig 파일을 다음과 같이 옮깁니다.
 
-```
+```bash
 sudo mv kube-controller-manager.kubeconfig /var/lib/kubernetes/
 ```
 
-Create the `kube-controller-manager.service` systemd unit file:
+`kube-controller-manager.service` systemd unit 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/systemd/system/kube-controller-manager.service
 [Unit]
 Description=Kubernetes Controller Manager
@@ -146,17 +137,17 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### Configure the Kubernetes Scheduler
+### Kubernetes Scheduler 설정
 
-Move the `kube-scheduler` kubeconfig into place:
+`kube-scheduler` kubeconfig 파일을 다음과 같이 옮깁니다.
 
-```
+```bash
 sudo mv kube-scheduler.kubeconfig /var/lib/kubernetes/
 ```
 
-Create the `kube-scheduler.yaml` configuration file:
+`kube-scheduler.yaml` 설정 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/kubernetes/config/kube-scheduler.yaml
 apiVersion: kubescheduler.config.k8s.io/v1alpha1
 kind: KubeSchedulerConfiguration
@@ -167,9 +158,9 @@ leaderElection:
 EOF
 ```
 
-Create the `kube-scheduler.service` systemd unit file:
+`kube-scheduler.service` systemd unit 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/systemd/system/kube-scheduler.service
 [Unit]
 Description=Kubernetes Scheduler
@@ -187,111 +178,47 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### Start the Controller Services
+### 컨트롤러 서비스 시작
 
-```
-{
-  sudo systemctl daemon-reload
-  sudo systemctl enable kube-apiserver kube-controller-manager kube-scheduler
-  sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
-}
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable kube-apiserver kube-controller-manager kube-scheduler
+sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
 ```
 
-> Allow up to 10 seconds for the Kubernetes API Server to fully initialize.
+> Kubernetes API 서버가 완전히 초기화되는데 약 30초 정도 소요됩니다.
 
-### Enable HTTP Health Checks
 
-A [Google Network Load Balancer](https://cloud.google.com/compute/docs/load-balancing/network) will be used to distribute traffic across the three API servers and allow each API server to terminate TLS connections and validate client certificates. The network load balancer only supports HTTP health checks which means the HTTPS endpoint exposed by the API server cannot be used. As a workaround the nginx webserver can be used to proxy HTTP health checks. In this section nginx will be installed and configured to accept HTTP health checks on port `80` and proxy the connections to the API server on `https://127.0.0.1:6443/healthz`.
+### 검증
 
-> The `/healthz` API server endpoint does not require authentication by default.
+다음 명령을 통해 실행 상태를 확인합니다.
 
-Install a basic web server to handle HTTP health checks:
-
-```
-sudo apt-get update
-sudo apt-get install -y nginx
+```bash
+kubectl get componentstatuses
 ```
 
-```
-cat > kubernetes.default.svc.cluster.local <<EOF
-server {
-  listen      80;
-  server_name kubernetes.default.svc.cluster.local;
-
-  location /healthz {
-     proxy_pass                    https://127.0.0.1:6443/healthz;
-     proxy_ssl_trusted_certificate /var/lib/kubernetes/ca.pem;
-  }
-}
-EOF
-```
-
-```
-{
-  sudo mv kubernetes.default.svc.cluster.local \
-    /etc/nginx/sites-available/kubernetes.default.svc.cluster.local
-
-  sudo ln -s /etc/nginx/sites-available/kubernetes.default.svc.cluster.local /etc/nginx/sites-enabled/
-}
-```
-
-```
-sudo systemctl restart nginx
-```
-
-```
-sudo systemctl enable nginx
-```
-
-### Verification
-
-```
-kubectl get componentstatuses --kubeconfig admin.kubeconfig
-```
-
-```
+```bash
 NAME                 STATUS    MESSAGE             ERROR
-scheduler            Healthy   ok
-controller-manager   Healthy   ok
-etcd-0               Healthy   {"health":"true"}
-etcd-1               Healthy   {"health":"true"}
+scheduler            Healthy   ok                  
+controller-manager   Healthy   ok                  
+etcd-1               Healthy   {"health":"true"}   
+etcd-0               Healthy   {"health":"true"}   
 etcd-2               Healthy   {"health":"true"}
 ```
 
-Test the nginx HTTP health check proxy:
+## Kubelet 승인을 위한 RBAC
 
-```
-curl -H "Host: kubernetes.default.svc.cluster.local" -i http://127.0.0.1/healthz
-```
+이 단락에서 Kubernetes API 서버가 각 워커 노드의 Kubelet API 서버에 접근할 수 있도록 RBAC 권한을 설정합니다. 메트릭 및 로그를 조회하고 파드에서 명령을 실행하려면 Kubelet API에 접근해야 합니다.
 
-```
-HTTP/1.1 200 OK
-Server: nginx/1.18.0 (Ubuntu)
-Date: Sat, 18 Jul 2020 06:20:48 GMT
-Content-Type: text/plain; charset=utf-8
-Content-Length: 2
-Connection: keep-alive
-Cache-Control: no-cache, private
-X-Content-Type-Options: nosniff
+> 이 자습서에서는 Kubelet의 `--authorization-mode` 설정을 `Webhook`으로 설정합니다. Webhook 모드는 [SubjectAccessReview](https://kubernetes.io/docs/admin/authorization/#checking-api-access)를 사용하여 권한을 결정합니다.
 
-ok
+이 단락에 있는 명령들은 전체 클러스터에 영향을 주므로 컨트롤러 노드 중 한 대에서 한 번만 실행하면 됩니다.
+
+```bash
+ssh controller-0.${DOMAIN}
 ```
 
-> Remember to run the above commands on each controller node: `controller-0`, `controller-1`, and `controller-2`.
-
-## RBAC for Kubelet Authorization
-
-In this section you will configure RBAC permissions to allow the Kubernetes API Server to access the Kubelet API on each worker node. Access to the Kubelet API is required for retrieving metrics, logs, and executing commands in pods.
-
-> This tutorial sets the Kubelet `--authorization-mode` flag to `Webhook`. Webhook mode uses the [SubjectAccessReview](https://kubernetes.io/docs/admin/authorization/#checking-api-access) API to determine authorization.
-
-The commands in this section will effect the entire cluster and only need to be run once from one of the controller nodes.
-
-```
-gcloud compute ssh controller-0
-```
-
-Create the `system:kube-apiserver-to-kubelet` [ClusterRole](https://kubernetes.io/docs/admin/authorization/rbac/#role-and-clusterrole) with permissions to access the Kubelet API and perform most common tasks associated with managing pods:
+Kubelet API에 접근하고 파드 관리와 관련된 가장 일반적인 작업을 수행할 권한이 있는 `system:kube-apiserver-to-kubelet` [ClusterRole](https://kubernetes.io/docs/admin/authorization/rbac/#role-and-clusterrole)을 생성합니다.
 
 ```
 cat <<EOF | kubectl apply --kubeconfig admin.kubeconfig -f -
