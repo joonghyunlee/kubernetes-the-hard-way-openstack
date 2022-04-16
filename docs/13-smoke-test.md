@@ -219,4 +219,4 @@ ETag: "61f01158-267"
 Accept-Ranges: bytes
 ```
 
-Next: [정리](14-cleanup.md)
+다음: [정리](14-cleanup.md)

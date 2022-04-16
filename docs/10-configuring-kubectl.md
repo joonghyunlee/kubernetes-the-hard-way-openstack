@@ -65,4 +65,4 @@ worker-1   Ready    <none>   2m30s   v1.18.6
 worker-2   Ready    <none>   2m30s   v1.18.6
 ```
 
-Next: [Pod Network 라우팅 구성](11-pod-network-routes.md)
+다음: [Pod Network 라우팅 구성](11-pod-network-routes.md)

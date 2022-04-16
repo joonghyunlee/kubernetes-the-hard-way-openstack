@@ -308,4 +308,4 @@ curl --cacert ca.pem https://${KUBERNETES_PUBLIC_ADDRESS}:6443/version
 }
 ```
 
-Next: [Kubernetes 워커 노드 구성](09-bootstrapping-kubernetes-workers.md)
+다음: [Kubernetes 워커 노드 구성](09-bootstrapping-kubernetes-workers.md)

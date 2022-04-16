@@ -120,4 +120,4 @@ dc6a42cb0de5d24c, started, controller-2, https://192.168.0.12:2380, https://192.
 f6cc087b9f0b9fa3, started, controller-0, https://192.168.0.10:2380, https://192.168.0.10:2379, false
 ```
 
-Next: [Kubernetes 컨트롤러 노드 구성하기](08-bootstrapping-kubernetes-controllers.md)
+다음: [Kubernetes 컨트롤러 노드 구성하기](08-bootstrapping-kubernetes-controllers.md)
