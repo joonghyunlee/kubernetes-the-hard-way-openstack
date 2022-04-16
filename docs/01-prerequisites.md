@@ -2,7 +2,7 @@
 
 ## NHN Cloud Platform
 
-이 가이드에서는 [NHN Cloud](www.toast.com)을 활용하여 Kubernetes 클러스터를 구축하는데 필요한 컴퓨팅 인프라스트럭쳐 구축 과정을 간소화합니다.
+이번 실습에서는 [NHN Cloud](www.toast.com)을 활용하여 Kubernetes 클러스터를 구축하는데 필요한 컴퓨팅 인프라스트럭쳐 구축 과정을 소개합니다.
 
 ## OpenStack 명령줄 도구 설치
 
@@ -63,6 +63,6 @@ export OS_REGION_NAME=KR1
 
 ![tmux screenshot](images/tmux-screenshot.png)
 
-> Enable synchronize-panes by pressing `ctrl+b` followed by `shift+:`. Next type `set synchronize-panes on` at the prompt. To disable synchronization: `set synchronize-panes off`.
+> 분할창 간 입력을 동기화하려면 `ctrl+b`를 입력한 다음 `shift+:`를 입력해 명령 프롬프트로 진입합니다. 그리고 프롬프트에서 `set synchronize-panes on`를 입력하면 됩니다. 동기화를 해제하려면 명령 프롬프트에서 `set synchronize-panes off`를 입력합니다.
 
-Next: [사용자 도구 설치](02-client-tools.md)
+다음: [사용자 도구 설치](02-client-tools.md)

@@ -269,4 +269,4 @@ Host *.k8s.nhn
 
 
 
-Next: [인증기관(CA) 구성 및 TLS 인증서 생성](04-certificate-authority.md)
+다음: [인증기관(CA) 구성 및 TLS 인증서 생성](04-certificate-authority.md)

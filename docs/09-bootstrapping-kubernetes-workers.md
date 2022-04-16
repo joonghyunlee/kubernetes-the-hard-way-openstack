@@ -259,6 +259,6 @@ worker-1   Ready    <none>   24s   v1.18.6
 worker-2   Ready    <none>   24s   v1.18.6
 ```
 
-**주의:** 출력 결과에서 노드들의 상태가 'NotReady'로 되어 있는 것은 아직 CNI 구성이 끝나지 않았기 때문입니다. 이 과정은 이후 "Pod Network Routes" 실습에서 진행됩니다.
+**주의:** 출력 결과에서 노드들의 상태가 'NotReady'로 되어 있는 것은 아직 CNI 구성이 끝나지 않았기 때문입니다. 이 과정은 이후 "Pod Network 라우팅 구성" 실습에서 진행됩니다.
 
-Next: [원격 접근을 위한 kubectl 설정](10-configuring-kubectl.md)
+다음: [원격 접근을 위한 kubectl 설정](10-configuring-kubectl.md)
