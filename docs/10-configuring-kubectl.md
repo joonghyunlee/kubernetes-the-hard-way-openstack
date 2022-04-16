@@ -1,49 +1,47 @@
-# Configuring kubectl for Remote Access
+# 원격 접근을 위한 kubectl 설정
 
-In this lab you will generate a kubeconfig file for the `kubectl` command line utility based on the `admin` user credentials.
+이 실습에서는 `admin` 사용자 자격 증명을 기반으로 `kubectl`용 kubeconfig 파일을 생성해보겠습니다.
 
-> Run the commands in this lab from the same directory used to generate the admin client certificates.
+> 이 실습은 앞 서 admin 사용자 자격 증명을 생성했던 디렉토리에서 진행해야 합니다.
 
-## The Admin Kubernetes Configuration File
+## Admin용 Kubernetes 설정 파일
 
-Each kubeconfig requires a Kubernetes API Server to connect to. To support high availability the IP address assigned to the external load balancer fronting the Kubernetes API Servers will be used.
+각 kubeconfig 파일에는 연결할 Kubernetes API 서버 주소가 필요합니다. 보통 고가용성을 지원하기 위해 Kubernetes API 서버 앞에 있는 로드밸런서에 연결된 Floating IP 주소가 사용됩니다.
 
-Generate a kubeconfig file suitable for authenticating as the `admin` user:
+`admin` 사용자를 인증할 수 있는 kubeconfig 파일을 생성해봅시다.
 
-```
-{
-  KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
-    --region $(gcloud config get-value compute/region) \
-    --format 'value(address)')
+```bash
+KUBERNETES_PUBLIC_ADDRESS=$(openstack floating ip list \
+  --port `neutron lbaas-loadbalancer-show kubernetes -f value -c vip_port_id` \
+  -f value -c 'Floating IP Address')
 
-  kubectl config set-cluster kubernetes-the-hard-way \
-    --certificate-authority=ca.pem \
-    --embed-certs=true \
-    --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443
+kubectl config set-cluster kubernetes-the-hard-way \
+  --certificate-authority=ca.pem \
+  --embed-certs=true \
+  --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443
 
-  kubectl config set-credentials admin \
-    --client-certificate=admin.pem \
-    --client-key=admin-key.pem
+kubectl config set-credentials admin \
+  --client-certificate=admin.pem \
+  --client-key=admin-key.pem
 
-  kubectl config set-context kubernetes-the-hard-way \
-    --cluster=kubernetes-the-hard-way \
-    --user=admin
+kubectl config set-context kubernetes-the-hard-way \
+  --cluster=kubernetes-the-hard-way \
+  --user=admin
 
-  kubectl config use-context kubernetes-the-hard-way
-}
+kubectl config use-context kubernetes-the-hard-way
 ```
 
-## Verification
+## 검증
 
-Check the health of the remote Kubernetes cluster:
+원격 Kubernetes 클러스터의 상태를 확인해봅시다.
 
-```
+```bash
 kubectl get componentstatuses
 ```
 
-> output
+> 출력
 
-```
+```bash
 NAME                 STATUS    MESSAGE             ERROR
 scheduler            Healthy   ok
 controller-manager   Healthy   ok
@@ -52,13 +50,13 @@ etcd-1               Healthy   {"health":"true"}
 etcd-2               Healthy   {"health":"true"}
 ```
 
-List the nodes in the remote Kubernetes cluster:
+원격 Kubernetes 클러스터의 노드 목록을 조회해봅시다.
 
-```
+```bash
 kubectl get nodes
 ```
 
-> output
+> 출력
 
 ```
 NAME       STATUS   ROLES    AGE     VERSION
@@ -67,4 +65,4 @@ worker-1   Ready    <none>   2m30s   v1.18.6
 worker-2   Ready    <none>   2m30s   v1.18.6
 ```
 
-Next: [Provisioning Pod Network Routes](11-pod-network-routes.md)
+Next: [Pod Network 라우팅 구성](11-pod-network-routes.md)

@@ -1,227 +1,272 @@
-# Provisioning Compute Resources
+# 인스턴스 준비
 
-Kubernetes requires a set of machines to host the Kubernetes control plane and the worker nodes where containers are ultimately run. In this lab you will provision the compute resources required for running a secure and highly available Kubernetes cluster across a single [compute zone](https://cloud.google.com/compute/docs/regions-zones/regions-zones).
+쿠버네티스는 컨트롤 플레인(API 서버)가 호스팅되는 노드들과 컨테이너가 궁극적으로 실행되는 워커 노드들이 필요합니다. 이 실습에서는 단일 [가용성 영역](https://docs.toast.com/ko/Compute/Instance/ko/overview/#availability-zone)에서 고가용성 쿠버네티스를 구축할 수 있도록 인스턴스들을 생성해보도록 하겠습니다.
 
-> Ensure a default compute zone and region have been set as described in the [Prerequisites](01-prerequisites.md#set-a-default-compute-region-and-zone) lab.
+
 
 ## Networking
 
-The Kubernetes [networking model](https://kubernetes.io/docs/concepts/cluster-administration/networking/#kubernetes-model) assumes a flat network in which containers and nodes can communicate with each other. In cases where this is not desired [network policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/) can limit how groups of containers are allowed to communicate with each other and external network endpoints.
+쿠버네티스의 [네트워킹 모델](https://kubernetes.io/docs/concepts/cluster-administration/networking/#kubernetes-model)은 컨테이너와 노드들이 서로 통신할 수 있는 flat 네트워크를 사용한다고 가정합니다. 이러한 가정이 여의치 않을 경우 [네트워크 정책](https://kubernetes.io/docs/concepts/services-networking/network-policies/)으로 컨테이너들이 상호간에 통신하는 방법과 외부 네트워크 엔드포인트들과 통신하는 방법을 제한할 수 있습니다.
 
-> Setting up network policies is out of scope for this tutorial.
+> 이 자습서는 쿠버네티스의 네트워크 정책에 대해 다루지 않습니다.
 
-### Virtual Private Cloud Network
 
-In this section a dedicated [Virtual Private Cloud](https://cloud.google.com/compute/docs/networks-and-firewalls#networks) (VPC) network will be setup to host the Kubernetes cluster.
 
-Create the `kubernetes-the-hard-way` custom VPC network:
+### 공용 네트워크
 
-```
-gcloud compute networks create kubernetes-the-hard-way --subnet-mode custom
-```
+공용 네트워크(Public network)는 Internet 망과 통신을 할 수 있도록 외부에서 접근이 가능한 네트워크를 말합니다. OpenStack의 공용 네트워크는 OpenStack 관리자 또는 서비스 프로바이더에 의해 제공됩니다. 
 
-A [subnet](https://cloud.google.com/compute/docs/vpc/#vpc_networks_and_subnets) must be provisioned with an IP address range large enough to assign a private IP address to each node in the Kubernetes cluster.
+NHN Cloud에서는 아래 명령을 통해 이미 존재하는 공용 네트워크를 확인할 수 있습니다.
 
-Create the `kubernetes` subnet in the `kubernetes-the-hard-way` VPC network:
-
-```
-gcloud compute networks subnets create kubernetes \
-  --network kubernetes-the-hard-way \
-  --range 10.240.0.0/24
+```bash
+openstack network list --external -c ID -c Name
 ```
 
-> The `10.240.0.0/24` IP address range can host up to 254 compute instances.
+위 명령의 실행 결과는 다음과 같습니다.
 
-### Firewall Rules
-
-Create a firewall rule that allows internal communication across all protocols:
-
-```
-gcloud compute firewall-rules create kubernetes-the-hard-way-allow-internal \
-  --allow tcp,udp,icmp \
-  --network kubernetes-the-hard-way \
-  --source-ranges 10.240.0.0/24,10.200.0.0/16
+```bash
++--------------------------------------+----------------+
+| ID                                   | Name           |
++--------------------------------------+----------------+
+| a858742a-245b-41d3-9a05-617e1b069eb9 | Public Network |
++--------------------------------------+----------------+
 ```
 
-Create a firewall rule that allows external SSH, ICMP, and HTTPS:
 
-```
-gcloud compute firewall-rules create kubernetes-the-hard-way-allow-external \
-  --allow tcp:22,tcp:6443,icmp \
-  --network kubernetes-the-hard-way \
-  --source-ranges 0.0.0.0/0
-```
 
-> An [external load balancer](https://cloud.google.com/compute/docs/load-balancing/network/) will be used to expose the Kubernetes API Servers to remote clients.
+### 사설 테넌트 네트워크
 
-List the firewall rules in the `kubernetes-the-hard-way` VPC network:
+사설 테넌트 네트워크(Private tenant network, 이하 테넌트 네트워크)는 사용자의 테넌트 내에서만 사용할 수 있는 사설 네트워크 입니다. 사설 네트워크에서 외부 인터넷 망으로 연결되려면 Neutron 라우터를 통해 공용 네트워크에 연결되어야 합니다. NHN Cloud의 기본 인프라 서비스에는 서비스 활성화시 기본 네트워크가 생성되기 때문에 이를 사용하도록 하겠습니다.
 
-```
-gcloud compute firewall-rules list --filter="network:kubernetes-the-hard-way"
+다음 명령으로 기본 네트워크를 확인합니다.
+
+```bash
+. openrc.sh
+
+NETWORK_ID=$(openstack network list --no-share -f value -c ID)
+EXT_NETWORK_ID=$(openstack network list --external -f value -c ID)
 ```
 
-> output
+기본 네트워크의 서브넷 기본 정보는 다음과 같이 확인합니다. 사용하려는 서브넷은 쿠버네티스의 각 노드에 사설 IP 주소를 부여할 수 있도록 충분히 넓은 대역을 가지고 있어야 합니다. NHN Cloud에서 기본 서브넷의 CIDR는 /24 이므로 이 자습서가 다루는 수준에서는 충분하다고 할 수 있습니다. 
 
-```
-NAME                                    NETWORK                  DIRECTION  PRIORITY  ALLOW                 DENY  DISABLED
-kubernetes-the-hard-way-allow-external  kubernetes-the-hard-way  INGRESS    1000      tcp:22,tcp:6443,icmp        False
-kubernetes-the-hard-way-allow-internal  kubernetes-the-hard-way  INGRESS    1000      tcp,udp,icmp                Fals
+```bash
+openstack subnet list --network $NETWORK_ID
 ```
 
-### Kubernetes Public IP Address
+> CIDR가 `192.168.0.0/24` 인 경우 최대 254개의 IP 주소를 사용할 수 있습니다. 다만 Router 및 DHCP 서버 등이 점유하는 IP가 있어서 사용할 수 있는 IP는 총 252개 입니다.
 
-Allocate a static IP address that will be attached to the external load balancer fronting the Kubernetes API Servers:
 
-```
-gcloud compute addresses create kubernetes-the-hard-way \
-  --region $(gcloud config get-value compute/region)
-```
 
-Verify the `kubernetes-the-hard-way` static IP address was created in your default compute region:
+### 보안 그룹
 
-```
-gcloud compute addresses list --filter="name=('kubernetes-the-hard-way')"
+NHN Cloud에서는 네트워크와 마찬가지로 보안그룹 역시 기본적으로 제공합니다. 이 보안그룹은 같은 그룹내 TCP, UDP 및 ICMP 통신을 허용하도록 되어 있습니다. 기본 보안그룹은 다음과 같이 확인합니다.
+
+```bash
+openstack security group list
 ```
 
-> output
+위 명령의 실행 결과는 다음과 같습니다.
+
+```bash
++--------------------------------------+----------+
+| ID                                   | Name     |
++--------------------------------------+----------+
+| e63abd05-06ed-4ee7-a603-b5cb12180bd3 | default  |
++--------------------------------------+----------+
+```
+
+이제 쿠버네티스 노드 사이의 통신을 위한 보안 그룹을 생성합니다. 이 보안 그룹에는 `tcp`, `udp`, `icmp`를 모두 허용하는 규칙을 지정합니다.
+
+```bash
+openstack security group create internal
+openstack security group rule create --ingress --protocol tcp --remote-group internal internal
+openstack security group rule create --ingress --protocol udp --remote-group internal internal
+openstack security group rule create --ingress --protocol icmp --remote-group internal internal
+```
+
+다음으로 쿠버네티스 클러스터 구축 및 사용을 위해 외부에서 TCP 22, 6443 포트와 ICMP를 열어주도록 합니다. 이를 위해 외부 접근에 대한 규칙을 담은 새로운 보안 그룹을 생성합니다.
+
+```bash
+openstack security group create external
+```
+
+```bash
+openstack security group rule create --ingress --protocol icmp external
+openstack security group rule create --ingress --protocol tcp --dst-port 22 external
+openstack security group rule create --ingress --protocol tcp --dst-port 6443 external
+```
+
+생성한 보안그룹을 보려면 다음과 같이 명령어를 실행합니다.
+
+```bash
+openstack security group list -c ID -c Name
+```
+
+위 명령의 실행 결과는 다음과 같습니다.
 
 ```
-NAME                     ADDRESS/RANGE   TYPE      PURPOSE  NETWORK  REGION    SUBNET  STATUS
-kubernetes-the-hard-way  XX.XXX.XXX.XXX  EXTERNAL                    us-west1          RESERVED
++--------------------------------------+----------+
+| ID                                   | Name     |
++--------------------------------------+----------+
+| 2f04bc01-fe46-4b81-8789-9385def84cfb | internal |
+| 7f5115f8-b097-4da4-8500-ff8570be57fd | external |
+| e63abd05-06ed-4ee7-a603-b5cb12180bd3 | default  |
++--------------------------------------+----------+
 ```
 
-## Compute Instances
 
-The compute instances in this lab will be provisioned using [Ubuntu Server](https://www.ubuntu.com/server) 20.04, which has good support for the [containerd container runtime](https://github.com/containerd/containerd). Each compute instance will be provisioned with a fixed private IP address to simplify the Kubernetes bootstrapping process.
 
-### Kubernetes Controllers
+### 로드밸런서 생성
 
-Create three compute instances which will host the Kubernetes control plane:
+로드밸런서를 생성하려면 먼저 서브넷 ID를 알아야 합니다. 다음 명령을 통해 Tenant 네트워크의 Subnet ID를 가져오도록 합니다.
 
+```bash
+SUBNET_ID=`openstack subnet list --network $NETWORK_ID -c ID -f value`
 ```
-for i in 0 1 2; do
-  gcloud compute instances create controller-${i} \
-    --async \
-    --boot-disk-size 200GB \
-    --can-ip-forward \
-    --image-family ubuntu-2004-lts \
-    --image-project ubuntu-os-cloud \
-    --machine-type e2-standard-2 \
-    --private-network-ip 10.240.0.1${i} \
-    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
-    --subnet kubernetes \
-    --tags kubernetes-the-hard-way,controller
+
+이제 아래 명령을 통해 로드밸런서를 생성합니다.
+
+```bash
+neutron lbaas-loadbalancer-create --name kubernetes --vip-address 192.168.0.9 $SUBNET_ID
+neutron lbaas-listener-create --loadbalancer kubernetes --protocol TCP --protocol-port 6443 --name kubernetes
+neutron lbaas-pool-create --name kubernetes --loadbalancer kubernetes --protocol TCP --lb-algorithm ROUND_ROBIN --listener kubernetes --member-port 6443
+neutron lbaas-healthmonitor-create --name kubernetes --type TCP --pool kubernetes --delay 30 --timeout 5 --max-retries 2 --health-check-port 6443
+```
+
+생성한 로드밸런서에 멤버를 추가합니다. 여기서 멤버로 추가할 인스턴스들은 이 후 생성할 마스터 인스턴스들 입니다. 
+
+```bash
+POOL_ID=`neutron lbaas-pool-list --name kubernetes -f value -c id`
+
+for i in 0 1 2;
+do
+  neutron lbaas-member-create --subnet $SUBNET_ID \
+    --address 192.168.0.1${i} \
+    --protocol-port 6443 \
+    $POOL_ID
 done
 ```
 
-### Kubernetes Workers
 
-Each worker instance requires a pod subnet allocation from the Kubernetes cluster CIDR range. The pod subnet allocation will be used to configure container networking in a later exercise. The `pod-cidr` instance metadata will be used to expose pod subnet allocations to compute instances at runtime.
+마지막으로 로드밸런서를 생성한 뒤 외부에서 접근하기 위해 Floating IP를 생성해 연결합니다.
 
-> The Kubernetes cluster CIDR range is defined by the Controller Manager's `--cluster-cidr` flag. In this tutorial the cluster CIDR range will be set to `10.200.0.0/16`, which supports 254 subnets.
-
-Create three compute instances which will host the Kubernetes worker nodes:
-
+```bash
+LB_PORT=`neutron lbaas-loadbalancer-show kubernetes -f value -c vip_port_id`
+openstack floating ip create $EXT_NETWORK_ID --port $LB_PORT
+KUBERNETES_PUBLIC_ADDRESS=`openstack floating ip list --port $LB_PORT -f value -c 'Floating IP Address'`
 ```
-for i in 0 1 2; do
-  gcloud compute instances create worker-${i} \
-    --async \
-    --boot-disk-size 200GB \
-    --can-ip-forward \
-    --image-family ubuntu-2004-lts \
-    --image-project ubuntu-os-cloud \
-    --machine-type e2-standard-2 \
-    --metadata pod-cidr=10.200.${i}.0/24 \
-    --private-network-ip 10.240.0.2${i} \
-    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
-    --subnet kubernetes \
-    --tags kubernetes-the-hard-way,worker
+
+
+## 인스턴스
+
+### 인스턴스 이미지
+
+쿠버네티스 노드들이 사용할 OS 이미지를 조회합니다. 이 자습서에서는 [containerd container runtime](https://github.com/containerd/containerd)를 지원하는 [Ubuntu Server](https://www.ubuntu.com/server) 20.04를 OS로 선택해서 인스턴스를 생성합니다. 
+
+```bash
+IMAGE_ID=$(openstack image list -f value -c ID --public \
+    --property os_distro=Ubuntu --property os_version='Server 20.04 LTS')
+```
+
+
+
+### 키 페어
+
+쿠버네티스 구축을 위해 각 노드에 접근하기 위한 키 페어를 생성합니다.
+
+```bash
+openstack keypair create k8s-node-key > ./k8s.node-key.pem
+```
+
+
+
+### 쿠버네티스 컨트롤러
+
+이제 쿠버네티스 컨트롤러 노드 3대를 생성합니다. 여기서는 쿠버네티스 구축 과정을 간소화하기 위해 각 인스턴스들의 고정 IP를 지정해서 생성합니다.
+
+```bash
+DOMAIN="k8s.nhn"
+for i in 0 1 2;
+do
+  nova boot \
+    --nic net-id=$NETWORK_ID,v4-fixed-ip=192.168.0.1${i} \
+    --flavor m2.c4m8 \
+    --key-name k8s-node-key \
+    --security-groups external,internal \
+    --block-device source=image,id=$IMAGE_ID,dest=volume,size=100,shutdown=remove,bootindex=0 \
+    controller-${i}.${DOMAIN};
+  openstack server add floating ip controller-${i}.${DOMAIN} $(openstack floating ip create $EXT_NETWORK_ID -f value -c floating_ip_address)
 done
 ```
 
-### Verification
 
-List the compute instances in your default compute zone:
 
-```
-gcloud compute instances list --filter="tags.items=kubernetes-the-hard-way"
-```
+### 쿠버네티스 워커
 
-> output
+다음으로 쿠버네티스 워커 노드를 생성합니다. 컨트롤러 노드와 마찬가지로 3대를 만들겠습니다.
 
-```
-NAME          ZONE        MACHINE_TYPE   PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP    STATUS
-controller-0  us-west1-c  e2-standard-2               10.240.0.10  XX.XX.XX.XXX   RUNNING
-controller-1  us-west1-c  e2-standard-2               10.240.0.11  XX.XXX.XXX.XX  RUNNING
-controller-2  us-west1-c  e2-standard-2               10.240.0.12  XX.XXX.XX.XXX  RUNNING
-worker-0      us-west1-c  e2-standard-2               10.240.0.20  XX.XX.XXX.XXX  RUNNING
-worker-1      us-west1-c  e2-standard-2               10.240.0.21  XX.XX.XX.XXX   RUNNING
-worker-2      us-west1-c  e2-standard-2               10.240.0.22  XX.XXX.XX.XX   RUNNING
-```
-
-## Configuring SSH Access
-
-SSH will be used to configure the controller and worker instances. When connecting to compute instances for the first time SSH keys will be generated for you and stored in the project or instance metadata as described in the [connecting to instances](https://cloud.google.com/compute/docs/instances/connecting-to-instance) documentation.
-
-Test SSH access to the `controller-0` compute instances:
-
-```
-gcloud compute ssh controller-0
+```bash
+for i in 0 1 2;
+do
+  nova boot \
+    --nic net-id=$NETWORK_ID,v4-fixed-ip=192.168.0.2${i} \
+    --flavor m2.c4m8 \
+    --key-name k8s-node-key \
+    --security-groups external,internal \
+    --block-device source=image,id=$IMAGE_ID,dest=volume,size=200,shutdown=remove,bootindex=0 \
+    worker-${i}.${DOMAIN};
+    openstack server add floating ip worker-${i}.${DOMAIN} $(openstack floating ip create $EXT_NETWORK_ID -f value -c floating_ip_address)
+done
 ```
 
-If this is your first time connecting to a compute instance SSH keys will be generated for you. Enter a passphrase at the prompt to continue:
+### 생성 확인
 
-```
-WARNING: The public SSH key file for gcloud does not exist.
-WARNING: The private SSH key file for gcloud does not exist.
-WARNING: You do not have an SSH key for gcloud.
-WARNING: SSH keygen will be executed to generate a key.
-Generating public/private rsa key pair.
-Enter passphrase (empty for no passphrase):
-Enter same passphrase again:
+이제 다음 명령을 실행하여 생성된 인스턴스들을 확인합니다.
+
+```bash
+openstack server list -f table -c Name -c Networks -c Flavor -c Status
 ```
 
-At this point the generated SSH keys will be uploaded and stored in your project:
+위 명령의 실행 결과는 다음과 같습니다.
 
 ```
-Your identification has been saved in /home/$USER/.ssh/google_compute_engine.
-Your public key has been saved in /home/$USER/.ssh/google_compute_engine.pub.
-The key fingerprint is:
-SHA256:nz1i8jHmgQuGt+WscqP5SeIaSy5wyIJeL71MuV+QruE $USER@$HOSTNAME
-The key's randomart image is:
-+---[RSA 2048]----+
-|                 |
-|                 |
-|                 |
-|        .        |
-|o.     oS        |
-|=... .o .o o     |
-|+.+ =+=.+.X o    |
-|.+ ==O*B.B = .   |
-| .+.=EB++ o      |
-+----[SHA256]-----+
-Updating project ssh metadata...-Updated [https://www.googleapis.com/compute/v1/projects/$PROJECT_ID].
-Updating project ssh metadata...done.
-Waiting for SSH key to propagate.
++----------------------+--------+------------------------------+---------+
+| Name                 | Status | Networks                     | Flavor  |
++----------------------+--------+------------------------------+---------+
+| worker-2.k8s.nhn     | ACTIVE | Default Network=192.168.0.22 | m2.c4m8 |
+| worker-1.k8s.nhn     | ACTIVE | Default Network=192.168.0.21 | m2.c4m8 |
+| worker-0.k8s.nhn     | ACTIVE | Default Network=192.168.0.20 | m2.c4m8 |
+| controller-2.k8s.nhn | ACTIVE | Default Network=192.168.0.12 | m2.c4m8 |
+| controller-1.k8s.nhn | ACTIVE | Default Network=192.168.0.11 | m2.c4m8 |
+| controller-0.k8s.nhn | ACTIVE | Default Network=192.168.0.10 | m2.c4m8 |
++----------------------+--------+------------------------------+---------+
 ```
 
-After the SSH keys have been updated you'll be logged into the `controller-0` instance:
+호스트의 이름으로 IP를 찾을 수 있도록 로컬의 `/etc/hosts`에 등록합니다.
 
-```
-Welcome to Ubuntu 20.04 LTS (GNU/Linux 5.4.0-1019-gcp x86_64)
-...
-```
-
-Type `exit` at the prompt to exit the `controller-0` compute instance:
-
-```
-$USER@controller-0:~$ exit
-```
-> output
-
-```
-logout
-Connection to XX.XX.XX.XXX closed
+```bash
+openstack server list -f value -c Networks -c Name | sed -e 's/Default Network=.*, //g' | awk ' { t = $1; $1 = $2; $2 = t; print; } ' | sudo tee -a /etc/hosts
 ```
 
-Next: [Provisioning a CA and Generating TLS Certificates](04-certificate-authority.md)
+
+## SSH 접속 설정
+
+컨트롤러 및 워커 인스턴스에 접근하기 위해서 SSH 설정을 구성합니다. 인스턴스 생성시 지정한 키페어는 인스턴스에 자동으로 주입되어 비밀번호 없이 접근할 수 있도록 설정됩니다. 아래 명령은 `~/.ssh/known_hosts`에 키를 추가하라는 요청을 통과할 수 있도록 합니다.
+
+```bash
+for host in $(openstack server list -f value -c Name); do
+  ssh-keyscan -H ${host} >> ~/.ssh/known_hosts
+done
+```
+
+인스턴스 접속 시 매번 user와 keyfile을 지정하는 것이 불편하다면 아래와 같이 `~/.ssh/config` 파일에 설정을 추가합니다.
+
+```config
+Host *.k8s.nhn
+    User ubuntu
+    IdentityFile ~/.ssh/k8s.node-key.pem
+```
+
+
+
+Next: [인증기관(CA) 구성 및 TLS 인증서 생성](04-certificate-authority.md)
