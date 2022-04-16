@@ -64,4 +64,4 @@ worker-1.k8s.lan   Ready    <none>   3m55s   v1.18.6
 worker-2.k8s.lan   Ready    <none>   3m55s   v1.18.6
 ```
 
-Next: [DNS 클러스터 애드온 설치](12-dns-addon.md)
+다음: [DNS 클러스터 애드온 설치](12-dns-addon.md)
