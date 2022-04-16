@@ -1,53 +1,47 @@
-# Bootstrapping the Kubernetes Worker Nodes
+# Kubernetes 워커 노드 구성
 
-In this lab you will bootstrap three Kubernetes worker nodes. The following components will be installed on each node: [runc](https://github.com/opencontainers/runc), [container networking plugins](https://github.com/containernetworking/cni), [containerd](https://github.com/containerd/containerd), [kubelet](https://kubernetes.io/docs/admin/kubelet), and [kube-proxy](https://kubernetes.io/docs/concepts/cluster-administration/proxies).
+이 실습에서는 세 대의 Kubernetes 워커 노드를 준비하겠습니다. 각 워커 노드에는 [runc](https://github.com/opencontainers/runc), [container networking plugins](https://github.com/containernetworking/cni), [containerd](https://github.com/containerd/containerd), [kubelet](https://kubernetes.io/docs/admin/kubelet), 그리고 [kube-proxy](https://kubernetes.io/docs/concepts/cluster-administration/proxies) 등이 설치됩니다.
 
-## Prerequisites
+## 사전 준비
 
-The commands in this lab must be run on each worker instance: `worker-0`, `worker-1`, and `worker-2`. Login to each worker instance using the `gcloud` command. Example:
-
-```
-gcloud compute ssh worker-0
-```
-
-### Running commands in parallel with tmux
-
-[tmux](https://github.com/tmux/tmux/wiki) can be used to run commands on multiple compute instances at the same time. See the [Running commands in parallel with tmux](01-prerequisites.md#running-commands-in-parallel-with-tmux) section in the Prerequisites lab.
-
-## Provisioning a Kubernetes Worker Node
-
-Install the OS dependencies:
+이 실습에 나온 명령들은 각 워커 인스턴스 `worker-0`, `worker-1`, 그리고 `worker-2`에서 실행해야 합니다. 다음과 같이 워커 인스턴스에 접속합니다.
 
 ```
-{
-  sudo apt-get update
-  sudo apt-get -y install socat conntrack ipset
-}
+ssh worker-0.${DOMAIN}
 ```
 
-> The socat binary enables support for the `kubectl port-forward` command.
+## Kubernetes 워커 노드 구성하기
 
-### Disable Swap
+OS 의존성 패키지들을 설치합니다.
 
-By default the kubelet will fail to start if [swap](https://help.ubuntu.com/community/SwapFaq) is enabled. It is [recommended](https://github.com/kubernetes/kubernetes/issues/7294) that swap be disabled to ensure Kubernetes can provide proper resource allocation and quality of service.
-
-Verify if swap is enabled:
-
+```bash
+sudo apt-get update
+sudo apt-get -y install socat conntrack ipset
 ```
+
+> socat 바이너리는 `kubectl port-forward` 명령을 지원하는데 필요합니다.
+
+### Swap 비활성화
+
+기본적으로 kubelet는 [스왑](https://help.ubuntu.com/community/SwapFaq)이 활성화되어 있다면 구동에 실패합니다. 그러므로 Kubernetes가 적절한 리소스 할당 기능 및 서비스 품질을 제공할 수 있도록 스왑을 비활성화하는 것을 [권장합니다](https://github.com/kubernetes/kubernetes/issues/7294).
+
+스왑이 활성화되어 있는지 확인해봅니다.
+
+```bash
 sudo swapon --show
 ```
 
-If output is empthy then swap is not enabled. If swap is enabled run the following command to disable swap immediately:
+만약 아무 것도 출력되지 않는다면 스왑은 비활성화된 상태입니다. 스왑이 활성화되어 있는 경우 다음 명령을 통해 즉시 비활성화시키도록 합시다.
 
-```
+```bash
 sudo swapoff -a
 ```
 
-> To ensure swap remains off after reboot consult your Linux distro documentation.
+> 위 명령은 재부팅하면 그 효과가 사라집니다. 재부팅 후에도 스왑이 비활성화되게 하는 방법은 사용하고 있는 Linux 배포판 문서를 참고하시기 바랍니다.
 
-### Download and Install Worker Binaries
+### Worker 바이너리 다운로드 및 설치
 
-```
+```bash
 wget -q --show-progress --https-only --timestamping \
   https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.18.0/crictl-v1.18.0-linux-amd64.tar.gz \
   https://github.com/opencontainers/runc/releases/download/v1.0.0-rc91/runc.amd64 \
@@ -58,9 +52,9 @@ wget -q --show-progress --https-only --timestamping \
   https://storage.googleapis.com/kubernetes-release/release/v1.18.6/bin/linux/amd64/kubelet
 ```
 
-Create the installation directories:
+설치를 위한 디렉토리를 생성합니다.
 
-```
+```bash
 sudo mkdir -p \
   /etc/cni/net.d \
   /opt/cni/bin \
@@ -70,73 +64,32 @@ sudo mkdir -p \
   /var/run/kubernetes
 ```
 
-Install the worker binaries:
+워커 바이너리들을 설치합니다.
 
-```
-{
-  mkdir containerd
-  tar -xvf crictl-v1.18.0-linux-amd64.tar.gz
-  tar -xvf containerd-1.3.6-linux-amd64.tar.gz -C containerd
-  sudo tar -xvf cni-plugins-linux-amd64-v0.8.6.tgz -C /opt/cni/bin/
-  sudo mv runc.amd64 runc
-  chmod +x crictl kubectl kube-proxy kubelet runc 
-  sudo mv crictl kubectl kube-proxy kubelet runc /usr/local/bin/
-  sudo mv containerd/bin/* /bin/
-}
+```bash
+mkdir containerd
+tar -xvf crictl-v1.18.0-linux-amd64.tar.gz
+tar -xvf containerd-1.3.6-linux-amd64.tar.gz -C containerd
+sudo tar -xvf cni-plugins-linux-amd64-v0.8.6.tgz -C /opt/cni/bin/
+sudo mv runc.amd64 runc
+chmod +x crictl kubectl kube-proxy kubelet runc 
+sudo mv crictl kubectl kube-proxy kubelet runc /usr/local/bin/
+sudo mv containerd/bin/* /bin/
 ```
 
-### Configure CNI Networking
+### CNI 네트워킹 구성
 
-Retrieve the Pod CIDR range for the current compute instance:
+이 과정은 `kube-router` 설치 과정에서 자동으로 완료된다.
 
-```
-POD_CIDR=$(curl -s -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/computeMetadata/v1/instance/attributes/pod-cidr)
-```
+### containerd 구성
 
-Create the `bridge` network configuration file:
+`containerd` 설정 디렉토리를 생성합니다.
 
-```
-cat <<EOF | sudo tee /etc/cni/net.d/10-bridge.conf
-{
-    "cniVersion": "0.3.1",
-    "name": "bridge",
-    "type": "bridge",
-    "bridge": "cnio0",
-    "isGateway": true,
-    "ipMasq": true,
-    "ipam": {
-        "type": "host-local",
-        "ranges": [
-          [{"subnet": "${POD_CIDR}"}]
-        ],
-        "routes": [{"dst": "0.0.0.0/0"}]
-    }
-}
-EOF
-```
-
-Create the `loopback` network configuration file:
-
-```
-cat <<EOF | sudo tee /etc/cni/net.d/99-loopback.conf
-{
-    "cniVersion": "0.3.1",
-    "name": "lo",
-    "type": "loopback"
-}
-EOF
-```
-
-### Configure containerd
-
-Create the `containerd` configuration file:
-
-```
+```bash
 sudo mkdir -p /etc/containerd/
 ```
 
-```
+```bash
 cat << EOF | sudo tee /etc/containerd/config.toml
 [plugins]
   [plugins.cri.containerd]
@@ -148,9 +101,9 @@ cat << EOF | sudo tee /etc/containerd/config.toml
 EOF
 ```
 
-Create the `containerd.service` systemd unit file:
+`containerd.service` systemd unit 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/systemd/system/containerd.service
 [Unit]
 Description=containerd container runtime
@@ -174,19 +127,17 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### Configure the Kubelet
+### Kubelet 구성
 
-```
-{
-  sudo mv ${HOSTNAME}-key.pem ${HOSTNAME}.pem /var/lib/kubelet/
-  sudo mv ${HOSTNAME}.kubeconfig /var/lib/kubelet/kubeconfig
-  sudo mv ca.pem /var/lib/kubernetes/
-}
+```bash
+sudo mv ${HOSTNAME}-key.pem ${HOSTNAME}.pem /var/lib/kubelet/
+sudo mv ${HOSTNAME}.kubeconfig /var/lib/kubelet/kubeconfig
+sudo mv ca.pem /var/lib/kubernetes/
 ```
 
-Create the `kubelet-config.yaml` configuration file:
+`kubelet-config.yaml` 설정 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /var/lib/kubelet/kubelet-config.yaml
 kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -210,11 +161,11 @@ tlsPrivateKeyFile: "/var/lib/kubelet/${HOSTNAME}-key.pem"
 EOF
 ```
 
-> The `resolvConf` configuration is used to avoid loops when using CoreDNS for service discovery on systems running `systemd-resolved`. 
+> `resolvConf` 설정은 `systemd-resolved`을 사용하는 시스템에서 서비스 디스커버리 용도로 CoreDNS를 사용할 때 루프를 방지하기 위해 사용합니다.
 
-Create the `kubelet.service` systemd unit file:
+`kubelet.service` systemd unit 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/systemd/system/kubelet.service
 [Unit]
 Description=Kubernetes Kubelet
@@ -240,15 +191,15 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### Configure the Kubernetes Proxy
+### Kubernetes Proxy 구성
 
-```
+```bash
 sudo mv kube-proxy.kubeconfig /var/lib/kube-proxy/kubeconfig
 ```
 
-Create the `kube-proxy-config.yaml` configuration file:
+`kube-proxy-config.yaml` 설정 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /var/lib/kube-proxy/kube-proxy-config.yaml
 kind: KubeProxyConfiguration
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
@@ -259,9 +210,9 @@ clusterCIDR: "10.200.0.0/16"
 EOF
 ```
 
-Create the `kube-proxy.service` systemd unit file:
+`kube-proxy.service` systemd unit 파일을 생성합니다.
 
-```
+```bash
 cat <<EOF | sudo tee /etc/systemd/system/kube-proxy.service
 [Unit]
 Description=Kubernetes Kube Proxy
@@ -278,30 +229,28 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### Start the Worker Services
+### Worker 서비스 구동
 
-```
-{
-  sudo systemctl daemon-reload
-  sudo systemctl enable containerd kubelet kube-proxy
-  sudo systemctl start containerd kubelet kube-proxy
-}
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable containerd kubelet kube-proxy
+sudo systemctl start containerd kubelet kube-proxy
 ```
 
 > Remember to run the above commands on each worker node: `worker-0`, `worker-1`, and `worker-2`.
 
-## Verification
+## 검증
 
-> The compute instances created in this tutorial will not have permission to complete this section. Run the following commands from the same machine used to create the compute instances.
+> 이 자습서에서 생성된 인스턴스에서는 이 단원의 내용을 진행할 수 없습니다. 인스턴스를 생성하는데 사용된 장비에서 아래 명령을 실행하도록 합니다.
 
-List the registered Kubernetes nodes:
+등록된 Kubernetes 노드 목록을 확인합니다.
 
+```bash
+ssh controller-0.${DOMAIN} \
+  "kubectl get nodes --kubeconfig admin.kubeconfig"
 ```
-gcloud compute ssh controller-0 \
-  --command "kubectl get nodes --kubeconfig admin.kubeconfig"
-```
 
-> output
+> 출력
 
 ```
 NAME       STATUS   ROLES    AGE   VERSION
@@ -310,4 +259,6 @@ worker-1   Ready    <none>   24s   v1.18.6
 worker-2   Ready    <none>   24s   v1.18.6
 ```
 
-Next: [Configuring kubectl for Remote Access](10-configuring-kubectl.md)
+**주의:** 출력 결과에서 노드들의 상태가 'NotReady'로 되어 있는 것은 아직 CNI 구성이 끝나지 않았기 때문입니다. 이 과정은 이후 "Pod Network Routes" 실습에서 진행됩니다.
+
+Next: [원격 접근을 위한 kubectl 설정](10-configuring-kubectl.md)

@@ -387,4 +387,4 @@ done
 
 > 다음 단계에서는 `kube-proxy`, `kube-controller-manager`, `kube-scheduler`, 그리고 `kubelet` 클라이언트 인증서들을 이용하여 클라이언트 인증 설정파일을 생성합니다.
 
-Next: [Generating Kubernetes Configuration Files for Authentication](05-kubernetes-configuration-files.md)
+Next: [인증을 위한 쿠버네티스 설정 파일 생성](05-kubernetes-configuration-files.md)

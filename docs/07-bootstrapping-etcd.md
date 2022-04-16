@@ -1,4 +1,4 @@
-# etcd 클러스터 구성하기
+# etcd 클러스터 구성
 
 Kubernetes 컴포넌트들은 클러스터 상태 정보를 [etcd](https://github.com/etcd-io/etcd)에 저장합니다. 이번 실습에서는 고가용성 및 안전한 원격 접근을 위해 3개 노드로 구성된 etcd 클러스터를 구축해보겠습니다.
 
@@ -120,4 +120,4 @@ dc6a42cb0de5d24c, started, controller-2, https://192.168.0.12:2380, https://192.
 f6cc087b9f0b9fa3, started, controller-0, https://192.168.0.10:2380, https://192.168.0.10:2379, false
 ```
 
-Next: [Bootstrapping the Kubernetes Control Plane](08-bootstrapping-kubernetes-controllers.md)
+Next: [Kubernetes 컨트롤러 노드 구성하기](08-bootstrapping-kubernetes-controllers.md)

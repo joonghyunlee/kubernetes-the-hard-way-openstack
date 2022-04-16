@@ -213,4 +213,4 @@ for instance in controller-0 controller-1 controller-2; do
 done
 ```
 
-Next: [Generating the Data Encryption Config and Key](06-data-encryption-keys.md)
+Next: [데이터 암호화 설정 및 키 생성](06-data-encryption-keys.md)

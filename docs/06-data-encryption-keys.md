@@ -40,4 +40,4 @@ for instance in controller-0 controller-1 controller-2; do
 done
 ```
 
-Next: [Bootstrapping the etcd Cluster](07-bootstrapping-etcd.md)
+Next: [etcd 클러스터 구성](07-bootstrapping-etcd.md)

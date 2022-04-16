@@ -1,4 +1,4 @@
-# Kubernetes 컨트롤 플레인 준비하기
+# Kubernetes 컨트롤러 노드 구성
 
 이번 실습에서는 세 개의 인스턴스에 걸쳐 Kubernetes 마스터 노드를 준비하고 고가용성 구성을 하는 과정을 다룹니다. 이 과정에서 Kubernetes API 서버를 클라이언트에게 노출하기 위한 로드밸런서를 생성합니다. 최종적으로 Kubernetes API Server, Scheduler, 그리고 Controller Manager와 같은 구성요소들이 각 노드들에 설치됩니다.
 
@@ -10,7 +10,15 @@
 ssh controller-0.${DOMAIN}
 ```
 
-## Kubernetes 컨트롤 플레인 구성
+컨트롤러 인스턴스의 `/etc/hosts` 파일에 워커 인스턴스들의 별칭과 IP 주소를 추가합니다.
+
+```
+192.168.0.20 worker-0
+192.168.0.21 worker-1
+192.168.0.22 worker-2
+```
+
+## Kubernetes 컨트롤러 노드 구성
 
 먼저 Kubernetes 설정들을 저장하는 디렉토리를 생성합니다.
 
@@ -18,7 +26,7 @@ ssh controller-0.${DOMAIN}
 sudo mkdir -p /etc/kubernetes/config
 ```
 
-### Kubernetes 컨트롤러 바이너리 내려받기 및 설치
+### Kubernetes 컨트롤러 바이너리 다운로드 및 설치
 
 Kubernetes 공식 배포 바이너리를 내려받습니다.
 
@@ -77,7 +85,7 @@ ExecStart=/usr/local/bin/kube-apiserver \\
   --etcd-cafile=/var/lib/kubernetes/ca.pem \\
   --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
   --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
-  --etcd-servers=https://191.168.0.10:2379,https://192.168.0.11:2379,https://192.168.0.12:2379 \\
+  --etcd-servers=https://192.168.0.10:2379,https://192.168.0.11:2379,https://192.168.0.12:2379 \\
   --event-ttl=1h \\
   --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
   --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
@@ -118,6 +126,7 @@ Documentation=https://github.com/kubernetes/kubernetes
 [Service]
 ExecStart=/usr/local/bin/kube-controller-manager \\
   --bind-address=0.0.0.0 \\
+  --allocate-node-cidrs=true \\
   --cluster-cidr=10.200.0.0/16 \\
   --cluster-name=kubernetes \\
   --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \\
@@ -178,7 +187,7 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### 컨트롤러 서비스 시작
+### 컨트롤러 서비스 구동
 
 ```bash
 sudo systemctl daemon-reload
@@ -220,7 +229,7 @@ ssh controller-0.${DOMAIN}
 
 Kubelet API에 접근하고 파드 관리와 관련된 가장 일반적인 작업을 수행할 권한이 있는 `system:kube-apiserver-to-kubelet` [ClusterRole](https://kubernetes.io/docs/admin/authorization/rbac/#role-and-clusterrole)을 생성합니다.
 
-```
+```bash
 cat <<EOF | kubectl apply --kubeconfig admin.kubeconfig -f -
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
@@ -244,11 +253,11 @@ rules:
 EOF
 ```
 
-The Kubernetes API Server authenticates to the Kubelet as the `kubernetes` user using the client certificate as defined by the `--kubelet-client-certificate` flag.
+Kubernetes API 서버는 `--kubelet-client-certificate` 옵션으로 정의된 클라이언트 인증서를 사용하여 Kubelet에 `kubernetes` 사용자로 인증합니다. 
 
-Bind the `system:kube-apiserver-to-kubelet` ClusterRole to the `kubernetes` user:
+이제 `system:kube-apiserver-to-kubelet` ClusterRole을 `kubernetes` 사용자에게 적용합니다.
 
-```
+```bash
 cat <<EOF | kubectl apply --kubeconfig admin.kubeconfig -f -
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
@@ -266,68 +275,26 @@ subjects:
 EOF
 ```
 
-## The Kubernetes Frontend Load Balancer
+### 검증
 
-In this section you will provision an external load balancer to front the Kubernetes API Servers. The `kubernetes-the-hard-way` static IP address will be attached to the resulting load balancer.
+> 이 자습서에서 생성된 인스턴스에서는 이 단원의 내용을 진행할 수 없습니다. 인스턴스를 생성하는데 사용된 장비에서 아래 명령을 실행하도록 합니다.
 
-> The compute instances created in this tutorial will not have permission to complete this section. **Run the following commands from the same machine used to create the compute instances**.
+`kubernetes` 로드밸런서에 연결된 Floating IP를 조회합니다.
 
-
-### Provision a Network Load Balancer
-
-Create the external load balancer network resources:
-
-```
-{
-  KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
-    --region $(gcloud config get-value compute/region) \
-    --format 'value(address)')
-
-  gcloud compute http-health-checks create kubernetes \
-    --description "Kubernetes Health Check" \
-    --host "kubernetes.default.svc.cluster.local" \
-    --request-path "/healthz"
-
-  gcloud compute firewall-rules create kubernetes-the-hard-way-allow-health-check \
-    --network kubernetes-the-hard-way \
-    --source-ranges 209.85.152.0/22,209.85.204.0/22,35.191.0.0/16 \
-    --allow tcp
-
-  gcloud compute target-pools create kubernetes-target-pool \
-    --http-health-check kubernetes
-
-  gcloud compute target-pools add-instances kubernetes-target-pool \
-   --instances controller-0,controller-1,controller-2
-
-  gcloud compute forwarding-rules create kubernetes-forwarding-rule \
-    --address ${KUBERNETES_PUBLIC_ADDRESS} \
-    --ports 6443 \
-    --region $(gcloud config get-value compute/region) \
-    --target-pool kubernetes-target-pool
-}
+```bash
+LB_PORT=`neutron lbaas-loadbalancer-show kubernetes -f value -c vip_port_id`
+KUBERNETES_PUBLIC_ADDRESS=`openstack floating ip list --port $LB_PORT -f value -c 'Floating IP Address'`
 ```
 
-### Verification
+Kubernetes 버전을 확인하는 HTTP 요청을 확인차 보내봅니다.
 
-> The compute instances created in this tutorial will not have permission to complete this section. **Run the following commands from the same machine used to create the compute instances**.
-
-Retrieve the `kubernetes-the-hard-way` static IP address:
-
-```
-KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
-  --region $(gcloud config get-value compute/region) \
-  --format 'value(address)')
-```
-
-Make a HTTP request for the Kubernetes version info:
-
-```
+```bash
 curl --cacert ca.pem https://${KUBERNETES_PUBLIC_ADDRESS}:6443/version
 ```
 
-> output
+> 출력
 
-```
+```bash
 {
   "major": "1",
   "minor": "18",
@@ -341,4 +308,4 @@ curl --cacert ca.pem https://${KUBERNETES_PUBLIC_ADDRESS}:6443/version
 }
 ```
 
-Next: [Bootstrapping the Kubernetes Worker Nodes](09-bootstrapping-kubernetes-workers.md)
+Next: [Kubernetes 워커 노드 구성](09-bootstrapping-kubernetes-workers.md)

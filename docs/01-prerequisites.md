@@ -65,4 +65,4 @@ export OS_REGION_NAME=KR1
 
 > Enable synchronize-panes by pressing `ctrl+b` followed by `shift+:`. Next type `set synchronize-panes on` at the prompt. To disable synchronization: `set synchronize-panes off`.
 
-Next: [Installing the Client Tools](02-client-tools.md)
+Next: [사용자 도구 설치](02-client-tools.md)

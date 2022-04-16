@@ -1,4 +1,4 @@
-# 사용자 도구 설치하기
+# 사용자 도구 설치
 
 이 실습에서는 앞으로 진행하는데 필요한 명령줄 유틸리티인 [cfssl](https://github.com/cloudflare/cfssl), [cfssljson](https://github.com/cloudflare/cfssl), alc [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl)을 설치합니다.
 
@@ -115,4 +115,4 @@ kubectl version --client
 Client Version: version.Info{Major:"1", Minor:"18", GitVersion:"v1.18.6", GitCommit:"dff82dc0de47299ab66c83c626e08b245ab19037", GitTreeState:"clean", BuildDate:"2020-07-15T16:58:53Z", GoVersion:"go1.13.9", Compiler:"gc", Platform:"linux/amd64"}
 ```
 
-다음: [Provisioning Compute Resources](03-compute-resources.md)
+다음: [인스턴스 준비](03-compute-resources.md)

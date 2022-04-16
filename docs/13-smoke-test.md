@@ -1,23 +1,25 @@
-# Smoke Test
+# 기능 검증
 
-In this lab you will complete a series of tasks to ensure your Kubernetes cluster is functioning correctly.
+이 실습에서는 여러분들이 설치한 Kubernetes 클러스터가 정확히 동작하는지 확인하는 과정을 진행하겠습니다.
 
-## Data Encryption
+## 데이터 암호화
 
-In this section you will verify the ability to [encrypt secret data at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted).
+이 단원에서는 [저장 시 secret 데이터 암호화](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted) 기능을 검증해보겠습니다.
 
-Create a generic secret:
+Generic Secret을 하나 생성합니다.
 
-```
+```bash
 kubectl create secret generic kubernetes-the-hard-way \
   --from-literal="mykey=mydata"
 ```
 
 Print a hexdump of the `kubernetes-the-hard-way` secret stored in etcd:
 
-```
-gcloud compute ssh controller-0 \
-  --command "sudo ETCDCTL_API=3 etcdctl get \
+etcd에 저장된 `kubernetes-the-hard-way` Secretd의 덤프를 가져옵니다.
+
+```bash
+ssh controller-0.${DOMAIN} \
+  "sudo ETCDCTL_API=3 etcdctl get \
   --endpoints=https://127.0.0.1:2379 \
   --cacert=/etc/etcd/ca.pem \
   --cert=/etc/etcd/kubernetes.pem \
@@ -25,7 +27,7 @@ gcloud compute ssh controller-0 \
   /registry/secrets/default/kubernetes-the-hard-way | hexdump -C"
 ```
 
-> output
+> 출력
 
 ```
 00000000  2f 72 65 67 69 73 74 72  79 2f 73 65 63 72 65 74  |/registry/secret|
@@ -52,75 +54,75 @@ gcloud compute ssh controller-0 \
 0000014a
 ```
 
-The etcd key should be prefixed with `k8s:enc:aescbc:v1:key1`, which indicates the `aescbc` provider was used to encrypt the data with the `key1` encryption key.
+etcd 키는 `k8s:enc:aescbc:v1:key1` 접두사를 사용해야 합니다. 이는 `aescbc` 공급자가 `key` 암호화 키로 데이터를 암호화하는데 사용되었음을 나타냅니다.
 
-## Deployments
+## Deployment
 
-In this section you will verify the ability to create and manage [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
+이 단원에서는 [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)를 생성하고 관리하는 기능을 검증합니다.
 
-Create a deployment for the [nginx](https://nginx.org/en/) web server:
+[nginx](https://nginx.org/en/) 웹 서버용 Deployment를 생성합니다.
 
-```
+```bash
 kubectl create deployment nginx --image=nginx
 ```
 
-List the pod created by the `nginx` deployment:
+`nginx` Deployment에 의해 생성된 파드 목록을 가져옵니다.
 
-```
+```bash
 kubectl get pods -l app=nginx
 ```
 
-> output
+> 출력
 
 ```
 NAME                    READY   STATUS    RESTARTS   AGE
 nginx-f89759699-kpn5m   1/1     Running   0          10s
 ```
 
-### Port Forwarding
+### 포트 포워딩
 
-In this section you will verify the ability to access applications remotely using [port forwarding](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/).
+이 단원에서는 [포트 포워딩](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/)을 사용해 어플리케이션에 원격으로 접근하는 기능을 검증합니다.
 
-Retrieve the full name of the `nginx` pod:
+`nginx` 파드의 이름을 가져옵니다.
 
-```
+```bash
 POD_NAME=$(kubectl get pods -l app=nginx -o jsonpath="{.items[0].metadata.name}")
 ```
 
-Forward port `8080` on your local machine to port `80` of the `nginx` pod:
+로컬 장비의 `8080` 포트를 `nginx` 파드의 `80` 포트로 포워딩합니다.
 
-```
+```bash
 kubectl port-forward $POD_NAME 8080:80
 ```
 
-> output
+> 출력
 
 ```
 Forwarding from 127.0.0.1:8080 -> 80
 Forwarding from [::1]:8080 -> 80
 ```
 
-In a new terminal make an HTTP request using the forwarding address:
+새로운 터미널 창을 열고 포워딩하는 주소로 HTTP 요청을 보내봅니다.
 
-```
+```bash
 curl --head http://127.0.0.1:8080
 ```
 
-> output
+> 출력
 
 ```
 HTTP/1.1 200 OK
-Server: nginx/1.19.1
-Date: Sat, 18 Jul 2020 07:14:00 GMT
+Server: nginx/1.21.6
+Date: Sat, 16 Apr 2022 12:11:34 GMT
 Content-Type: text/html
-Content-Length: 612
-Last-Modified: Tue, 07 Jul 2020 15:52:25 GMT
+Content-Length: 615
+Last-Modified: Tue, 25 Jan 2022 15:03:52 GMT
 Connection: keep-alive
-ETag: "5f049a39-264"
+ETag: "61f01158-267"
 Accept-Ranges: bytes
 ```
 
-Switch back to the previous terminal and stop the port forwarding to the `nginx` pod:
+이전 터미널 창으로 돌아가 `nginx` 파드로의 포트 포워딩을 중단합니다.
 
 ```
 Forwarding from 127.0.0.1:8080 -> 80
@@ -129,91 +131,92 @@ Handling connection for 8080
 ^C
 ```
 
-### Logs
+### 로그
 
-In this section you will verify the ability to [retrieve container logs](https://kubernetes.io/docs/concepts/cluster-administration/logging/).
+이 단원에서는 [컨테이너 로그 보기](https://kubernetes.io/docs/concepts/cluster-administration/logging/) 기능을 검증하겠습니다.
 
-Print the `nginx` pod logs:
+`nginx` 파드의 로그를 출력해봅시다.
 
-```
+```bash
 kubectl logs $POD_NAME
 ```
 
-> output
+> 출력
 
 ```
 ...
-127.0.0.1 - - [18/Jul/2020:07:14:00 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/7.64.0" "-"
+127.0.0.1 - - [16/Apr/2022:12:11:34 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/7.68.0" "-""-"
 ```
 
-### Exec
+### 실행하기
 
-In this section you will verify the ability to [execute commands in a container](https://kubernetes.io/docs/tasks/debug-application-cluster/get-shell-running-container/#running-individual-commands-in-a-container).
+이 단원에서는 [컨테이너 내부에서 명령 실행하기](https://kubernetes.io/docs/tasks/debug-application-cluster/get-shell-running-container/#running-individual-commands-in-a-container) 기능을 검증하겠습니다.
 
-Print the nginx version by executing the `nginx -v` command in the `nginx` container:
+다음과 같이 `nginx` 컨테이너 내부에서 `nginx -v` 명령을 실행하여 nginx 버전을 확인하겠습니다.
 
-```
+```bash
 kubectl exec -ti $POD_NAME -- nginx -v
 ```
 
-> output
+> 출력
 
 ```
-nginx version: nginx/1.19.1
+nginx version: nginx/1.21.6
 ```
 
-## Services
+## Service
 
-In this section you will verify the ability to expose applications using a [Service](https://kubernetes.io/docs/concepts/services-networking/service/).
+이 단원에서는 [Service](https://kubernetes.io/docs/concepts/services-networking/service/)를 사용하여 어플리케이션을 외부로 노출하는 기능을 검증하겠습니다.
 
-Expose the `nginx` deployment using a [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) service:
+[NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) 타입 Service를 사용하여 `nginx` Deployment를 외부로 노출합니다.
 
-```
+```bash
 kubectl expose deployment nginx --port 80 --type NodePort
 ```
 
-> The LoadBalancer service type can not be used because your cluster is not configured with [cloud provider integration](https://kubernetes.io/docs/getting-started-guides/scratch/#cloud-provider). Setting up cloud provider integration is out of scope for this tutorial.
+> 여러분들이 구성한 Kubernetes 클러스터는 [클라우드 공급자 통합](https://kubernetes.io/docs/getting-started-guides/scratch/#cloud-provider) 구성이 되어 있지 않기 때문에 LoadBalancer 타입 Service는 사용할 수 없습니다. 클라우드 공급자 통합 설정은 이 자습서의 범위를 벗어납니다.
 
-Retrieve the node port assigned to the `nginx` service:
+`nginx` Service에 할당된 노드 포트를 확인합니다.
 
-```
+```bash
 NODE_PORT=$(kubectl get svc nginx \
   --output=jsonpath='{range .spec.ports[0]}{.nodePort}')
 ```
 
-Create a firewall rule that allows remote access to the `nginx` node port:
+`nginx` 노드 포트로의 원격 접근을 허용하는 보안 그룹 규칙을 생성합니다.
 
-```
-gcloud compute firewall-rules create kubernetes-the-hard-way-allow-nginx-service \
-  --allow=tcp:${NODE_PORT} \
-  --network kubernetes-the-hard-way
-```
-
-Retrieve the external IP address of a worker instance:
-
-```
-EXTERNAL_IP=$(gcloud compute instances describe worker-0 \
-  --format 'value(networkInterfaces[0].accessConfigs[0].natIP)')
+```bash
+openstack security group rule create \
+  --ingress \
+  --protocol tcp \
+  --dst-port ${NODE_PORT} \
+  external
 ```
 
-Make an HTTP request using the external IP address and the `nginx` node port:
+워커 인스턴스의 외부 IP 주소를 확인합니다.
+
+```bash
+EXTERNAL_IP=$(openstack server show worker-0.${DOMAIN} -f value -c addresses | cut -d',' -f2 | tr -d '[:space:]')
+```
+
+외부 IP 주소와 `nginx` 노드 포트를 사용해서 HTTP 요청을 보냅니다.
 
 ```
 curl -I http://${EXTERNAL_IP}:${NODE_PORT}
 ```
 
-> output
+> 출력
 
 ```
 HTTP/1.1 200 OK
-Server: nginx/1.19.1
-Date: Sat, 18 Jul 2020 07:16:41 GMT
+Server: nginx/1.21.6
+Date: Sat, 16 Apr 2022 13:38:54 GMT
 Content-Type: text/html
-Content-Length: 612
-Last-Modified: Tue, 07 Jul 2020 15:52:25 GMT
+Content-Length: 615
+Last-Modified: Tue, 25 Jan 2022 15:03:52 GMT
 Connection: keep-alive
-ETag: "5f049a39-264"
+ETag: "61f01158-267"
 Accept-Ranges: bytes
 ```
 
-Next: [Cleaning Up](14-cleanup.md)
+Next: [정리](14-cleanup.md)

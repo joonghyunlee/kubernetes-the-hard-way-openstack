@@ -1,4 +1,4 @@
-# 인스턴스 준비하기
+# 인스턴스 준비
 
 쿠버네티스는 컨트롤 플레인(API 서버)가 호스팅되는 노드들과 컨테이너가 궁극적으로 실행되는 워커 노드들이 필요합니다. 이 실습에서는 단일 [가용성 영역](https://docs.toast.com/ko/Compute/Instance/ko/overview/#availability-zone)에서 고가용성 쿠버네티스를 구축할 수 있도록 인스턴스들을 생성해보도록 하겠습니다.
 
@@ -118,13 +118,13 @@ openstack security group list -c ID -c Name
 
 ### 로드밸런서 생성
 
-서브넷 ID 조회
+로드밸런서를 생성하려면 먼저 서브넷 ID를 알아야 합니다. 다음 명령을 통해 Tenant 네트워크의 Subnet ID를 가져오도록 합니다.
 
 ```bash
 SUBNET_ID=`openstack subnet list --network $NETWORK_ID -c ID -f value`
 ```
 
-
+이제 아래 명령을 통해 로드밸런서를 생성합니다.
 
 ```bash
 neutron lbaas-loadbalancer-create --name kubernetes --vip-address 192.168.0.9 $SUBNET_ID
@@ -133,16 +133,28 @@ neutron lbaas-pool-create --name kubernetes --loadbalancer kubernetes --protocol
 neutron lbaas-healthmonitor-create --name kubernetes --type TCP --pool kubernetes --delay 30 --timeout 5 --max-retries 2 --health-check-port 6443
 ```
 
+생성한 로드밸런서에 멤버를 추가합니다. 여기서 멤버로 추가할 인스턴스들은 이 후 생성할 마스터 인스턴스들 입니다. 
 
+```bash
+POOL_ID=`neutron lbaas-pool-list --name kubernetes -f value -c id`
+
+for i in 0 1 2;
+do
+  neutron lbaas-member-create --subnet $SUBNET_ID \
+    --address 192.168.0.1${i} \
+    --protocol-port 6443 \
+    $POOL_ID
+done
+```
+
+
+마지막으로 로드밸런서를 생성한 뒤 외부에서 접근하기 위해 Floating IP를 생성해 연결합니다.
 
 ```bash
 LB_PORT=`neutron lbaas-loadbalancer-show kubernetes -f value -c vip_port_id`
 openstack floating ip create $EXT_NETWORK_ID --port $LB_PORT
 KUBERNETES_PUBLIC_ADDRESS=`openstack floating ip list --port $LB_PORT -f value -c 'Floating IP Address'`
 ```
-
-
-
 
 
 ## 인스턴스
@@ -257,4 +269,4 @@ Host *.k8s.nhn
 
 
 
-Next: [Provisioning a CA and Generating TLS Certificates](04-certificate-authority.md)
+Next: [인증기관(CA) 구성 및 TLS 인증서 생성](04-certificate-authority.md)

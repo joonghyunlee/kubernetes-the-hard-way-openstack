@@ -1,56 +1,36 @@
-# Cleaning Up
+# 정리
 
-In this lab you will delete the compute resources created during this tutorial.
+이 실습에서는 자습서를 진행하면서 만들었던 리소스를 삭제하겠습니다.
 
-## Compute Instances
+## 인스턴스
 
-Delete the controller and worker compute instances:
+컨트롤러와 워커 인스턴스들을 삭제합니다.
 
-```
-gcloud -q compute instances delete \
-  controller-0 controller-1 controller-2 \
-  worker-0 worker-1 worker-2 \
-  --zone $(gcloud config get-value compute/zone)
-```
-
-## Networking
-
-Delete the external load balancer network resources:
-
-```
-{
-  gcloud -q compute forwarding-rules delete kubernetes-forwarding-rule \
-    --region $(gcloud config get-value compute/region)
-
-  gcloud -q compute target-pools delete kubernetes-target-pool
-
-  gcloud -q compute http-health-checks delete kubernetes
-
-  gcloud -q compute addresses delete kubernetes-the-hard-way
-}
+```bash
+openstack server delete \
+  controller-0.${DOMAIN} controller-1.${DOMAIN} controller-2.${DOMAIN} \
+  worker-0.${DOMAIN} worker-1.${DOMAIN} worker-2.${DOMAIN}
 ```
 
-Delete the `kubernetes-the-hard-way` firewall rules:
+## 네트워킹
 
+로드밸런서를 삭제합니다.
+
+```bash
+neutron lbaas-healthmonitor-delete kubernetes
+neutron lbaas-pool-delete kubernetes
+neutron lbaas-listener-delete kubernetes
+neutron lbaas-loadbalancer-delete kubernetes
 ```
-gcloud -q compute firewall-rules delete \
-  kubernetes-the-hard-way-allow-nginx-service \
-  kubernetes-the-hard-way-allow-internal \
-  kubernetes-the-hard-way-allow-external \
-  kubernetes-the-hard-way-allow-health-check
+
+보안 그룹을 삭제 합니다.
+
+```bash
+openstack security group delete internal external
 ```
 
-Delete the `kubernetes-the-hard-way` network VPC:
+Floating IP들을 삭제합니다.
 
-```
-{
-  gcloud -q compute routes delete \
-    kubernetes-route-10-200-0-0-24 \
-    kubernetes-route-10-200-1-0-24 \
-    kubernetes-route-10-200-2-0-24
-
-  gcloud -q compute networks subnets delete kubernetes
-
-  gcloud -q compute networks delete kubernetes-the-hard-way
-}
+```bash
+openstack floating ip delete $(openstack floating ip list -f value -c ID)
 ```
